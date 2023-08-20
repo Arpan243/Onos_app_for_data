@@ -134,6 +134,7 @@ public class AppComponent implements SomeInterface {
     }
 
     private Map<IpAddress, Long> sourceIpBytes = new HashMap<>();
+    private Map<String, Long> flowDurations = new HashMap<>();
     private double entropyOfSourceIpBytes;
 
     private double calculateEntropyByte(Map<IpAddress, Long> sourceIpBytes) {
@@ -180,7 +181,8 @@ public class AppComponent implements SomeInterface {
                     + destinationIpAddressesOtherCount + "," + sourcePortsBelow1024Count + ","
                     + sourcePortsAbove1024Count + "," + destinationPortsBelow1024Count + ","
                     + destinationPortsAbove1024Count + "," + tcpProtocolCount + "," + udpProtocolCount + ","
-                    + icmpProtocolCount + "," + otherProtocolCount + "," + packetsTransferredEntropy + "," + entropyOfSourceIpBytes);
+                    + icmpProtocolCount + "," + otherProtocolCount + "," + packetsTransferredEntropy + ","
+                    + entropyOfSourceIpBytes);
 
             log.info("Connections data appended to new_features.csv");
         } catch (IOException e) {
@@ -245,6 +247,8 @@ public class AppComponent implements SomeInterface {
                         Iterable<FlowEntry> flowEntries = flowRuleService.getFlowEntries(device.id());
 
                         for (FlowEntry flowEntry : flowEntries) {
+
+                            
 
                             // Extract flow state flags
                             FlowEntryState flowState = flowEntry.state();
@@ -402,6 +406,8 @@ public class AppComponent implements SomeInterface {
                             totalDuration += durationMillis;
                             totalConnections++;
 
+                            flowDurations.put(flowId, durationMillis);
+
                             // Log the extracted information
                             String logMessage = String.format(
                                     "Flow Entry: flowId=%s, deviceId=%s, srcIp=%s, srcPort=%d, dstIp=%s, dstPort=%d, protocol=%s, packets=%d, bytes=%d, state=%s",
@@ -426,8 +432,21 @@ public class AppComponent implements SomeInterface {
 
                         }
 
+                        try (PrintWriter durationWriter = new PrintWriter(new FileWriter("/home/wifi/Desktop/new_features.csv"))) {
+                            durationWriter.println("Flow ID,Duration (ms)");
+                        
+                            for (Map.Entry<String, Long> entry : flowDurations.entrySet()) {
+                                durationWriter.println(entry.getKey() + "," + entry.getValue());
+                            }
+                        
+                            log.info("Flow durations written to flow_durations.csv");
+                        } catch (IOException e) {
+                            log.error("Error writing flow durations to flow_durations.csv file", e);
+                        
+
                         // Store packet count in a map for calculating entropy
                         packetCounts.put(device.id().toString(), packetCount);
+                        }
                     }
                     int numberOfConnections = uniqueConnections.size();
                     log.info("Number of unique connections: {}", numberOfConnections);
@@ -472,16 +491,6 @@ public class AppComponent implements SomeInterface {
                     entropyOfSourceIpBytes = calculateEntropyByte(sourceIpBytes);
 
                     log.info("Bytes of Source Entropy: {}", entropyOfSourceIpBytes);
-
-                    writeNumberOfConnectionsToFile(numberOfConnections, normalConnectionsCount,
-                            backgroundConnectionsCount, meanDuration, sourceIpAddressesACount,
-                            sourceIpAddressesBCount, sourceIpAddressesCCount, sourceIpAddressesOtherCount,
-                            destinationIpAddressesACount, destinationIpAddressesBCount,
-                            destinationIpAddressesCCount, destinationIpAddressesOtherCount,
-                            sourcePortsBelow1024Count, sourcePortsAbove1024Count,
-                            destinationPortsBelow1024Count, destinationPortsAbove1024Count,
-                            tcpProtocolCount, udpProtocolCount, icmpProtocolCount, otherProtocolCount,
-                            packetsTransferredEntropy,entropyOfSourceIpBytes);
 
                     uniqueConnections.clear();
                     log.info("Flow data logged successfully in the file: {}", csvFilePath);
